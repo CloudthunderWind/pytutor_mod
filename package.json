@@ -9,7 +9,11 @@
   },
   "dependencies": {
     "core-js": "^3.8.3",
-    "vue": "^3.2.13"
+    "vue": "^3.2.13",
+    "babel-plugin-prismjs": "^2.1.0",
+    "prismjs": "^1.29.0",
+    "ant-design-vue": "latest",
+    "echarts": "^5.4.2"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
@@ -18,7 +22,13 @@
     "@vue/cli-plugin-eslint": "~5.0.0",
     "@vue/cli-service": "~5.0.0",
     "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3"
+    "eslint-plugin-vue": "^8.0.3",
+    "vue-axios": "^3.5.2",
+    "vue-loader": "^17.1.0",
+    "vue-router": "^4.1.6",
+    "axios": "^1.4.0",
+    "jquery": "^3.6.4",
+    "webpack": "latest"
   },
   "eslintConfig": {
     "root": true,
