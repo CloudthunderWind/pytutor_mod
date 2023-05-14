@@ -30,4 +30,6 @@ axiosService.interceptors.response.use((response) => {
     }
 })
 
-export default axiosService;
+export {
+    axiosService as axios
+} ;
