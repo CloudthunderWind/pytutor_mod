@@ -3,8 +3,8 @@
     <div id="leftBlock">
       <div id="langDisplayDiv">{{ param.lang }}</div>
       <div id="pyCodeOutputDiv">
-        <pre id="display-code" class="line-numbers linkable-line-numbers code-body"><code
-            class="language-python">{{ data.code }}</code>
+        <pre id="display-code" class="line-numbers linkable-line-numbers"><code
+            class="language-python">{{ data.code.main_code }}</code>
         </pre>
       </div>
       <div id="footer">
@@ -28,7 +28,6 @@
                       placeholder="<< 标准输出流" readonly>
           </a-textarea>
         </div>
-
 
         <div id="editCodeLinkDiv" style="display: none"><a id="editBtn">编辑代码(待开发)</a>
           <span id="liveModeSpan" style="display: none;">| <a id="editLiveModeBtn" href="#">在线编程(待开发)</a></span>
@@ -85,7 +84,7 @@
       </div>
     </div>
     <div id="rightBlock">
-      <RelationGraph></RelationGraph>
+      <RelationGraph ref="relationGraphInstance"></RelationGraph>
       <div id="annotateLinkDiv" style="display: none">
         <button id="annotateBtn" type="button">Annotate this step</button>
       </div>
@@ -98,42 +97,35 @@ export default {
   name: "ExecutionVisualizer"
 }
 </script>
+
 <script setup>
-import {onMounted, reactive} from "vue";
+import {onMounted, provide, reactive, ref} from "vue";
 import Prism from "prismjs"
 import RelationGraph from "@/components/RelationGraph";
+import trace from "@/assets/trace.json";
 
-
-// eslint-disable-next-line no-unused-vars
-let data = {
-  code: "class TreeNode:\n" +
-      "\n" +
-      "    def __init__(self, val, left=None, right=None):\n" +
-      "        self.val = val\n" +
-      "        self.left = left\n" +
-      "        self.right = right\n" +
-      "\n" +
-      "\n" +
-      "node1 = TreeNode(0, TreeNode(1), TreeNode(2))",
-  trace: []
-};
 const arrowLinesStyle = {
   SVG_ARROW_POLYGON: "0,3 12,3 12,0 18,5 12,10 12,7 0,7",
   lightArrowColor: "#c9e6ca",
   darkArrowColor: "#e93f34"
 }
-let param = {
+const relationGraphInstance = ref();
+// eslint-disable-next-line no-unused-vars
+let data = reactive(trace);
+let param = ref({
   lang: "Python3",
   highlightLines: false
-}
+})
 let info = reactive({
   step: {
     pastStep: 1,
     curStep: 1,
-    totalStep: 17,
+    totalStep: data.trace.length,
     stepPointer: 1
   }
 });
+provide("trace", data.trace);
+provide("info", info);
 
 /**
  * 重设代码块大小
@@ -151,7 +143,7 @@ function renderStep() {
   }
   info.step.pastStep = info.step.curStep;
   info.step.curStep = info.step.stepPointer;
-  // TODO 渲染步
+  relationGraphInstance.value.renderCurStep();
 }
 
 function renderFirst() {
