@@ -111,7 +111,7 @@ pre[data-line] {
     position: absolute;
     left: 0;
     right: 0;
-    padding: inherit 0;
+    padding: inherit;
     margin-top: 1em;
     background: hsla(24, 20%, 50%, .08);
     background: linear-gradient(to right, hsla(24, 20%, 50%, .1) 70%, hsla(24, 20%, 50%, 0));

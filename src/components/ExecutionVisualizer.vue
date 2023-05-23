@@ -38,12 +38,14 @@
                      :fill="arrowLinesStyle.lightArrowColor"></polygon>
           </svg>
           上一次执行的行
+          <a :href="'#display-code.'+lineState.pastLine">第{{ lineState.pastLine }}行</a>
           <span class="break"></span>
           <svg id="curLegendArrowSVG" class="arrow-svg">
             <polygon :points="arrowLinesStyle.SVG_ARROW_POLYGON"
                      :fill="arrowLinesStyle.darkArrowColor"></polygon>
           </svg>
           当前执行的行
+          <a :href="'#display-code.'+lineState.curLine">第{{ lineState.curLine }}行</a>
         </div>
         <div id="executionSliderDocs">
           单击代码行以设置断点。
@@ -95,12 +97,12 @@
 <script>
 export default {
   name: "ExecutionVisualizer"
-}
+};
 </script>
 
 <script setup>
 import {onMounted, provide, reactive, ref} from "vue";
-import Prism from "prismjs"
+import Prism from "prismjs";
 import RelationGraph from "@/components/RelationGraph";
 import trace from "@/assets/trace.json";
 
@@ -108,21 +110,25 @@ const arrowLinesStyle = {
   SVG_ARROW_POLYGON: "0,3 12,3 12,0 18,5 12,10 12,7 0,7",
   lightArrowColor: "#c9e6ca",
   darkArrowColor: "#e93f34"
-}
+};
 const relationGraphInstance = ref();
 // eslint-disable-next-line no-unused-vars
 let data = reactive(trace);
 let param = ref({
   lang: "Python3",
   highlightLines: false
-})
+});
 let info = reactive({
   step: {
     pastStep: 1,
     curStep: 1,
-    totalStep: data.trace.length,
+    totalStep: data.trace.length - 1,
     stepPointer: 1
   }
+});
+let lineState = reactive({
+  pastLine: data.trace[info.step.curStep - 1]["line"],
+  curLine: data.trace[info.step.curStep - 1]["line"]
 });
 provide("trace", data.trace);
 provide("info", info);
@@ -143,6 +149,9 @@ function renderStep() {
   }
   info.step.pastStep = info.step.curStep;
   info.step.curStep = info.step.stepPointer;
+  lineState.pastLine = lineState.curLine;
+  lineState.curLine = data.trace[info.step.curStep - 1]["line"];
+  window.location.assign("#display-code." + lineState.curLine);
   relationGraphInstance.value.renderCurStep();
 }
 
@@ -168,7 +177,7 @@ function stepBack() {
 
 onMounted(() => {
   Prism.highlightAll();
-})
+});
 </script>
 
 <style scoped>
