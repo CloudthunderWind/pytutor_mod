@@ -1,18 +1,18 @@
-import {axios} from '../util/request';
+import {axios} from '@/util/request';
 
 const traceAPI = "/trace";
 
 export function getTraceAPI() {
     return axios({
-        url: traceAPI + "/getTrace",
+        url: `${traceAPI}/getTrace`,
         method: "GET"
-    })
+    });
 }
 
 export function runCodeAndGetTraceAPI(code) {
     return axios({
-        url: traceAPI + "/runCodeAndGetTrace",
+        url: `${traceAPI}/runCodeAndGetTrace`,
         method: "POST",
-        params: code
-    })
+        data: code
+    });
 }

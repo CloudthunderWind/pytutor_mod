@@ -1,11 +1,15 @@
 <template>
   <div id="codeDisplayDiv" @resize="resizeCodeDisplay">
     <div id="leftBlock">
-      <div id="langDisplayDiv">{{ param.lang }}</div>
+      <div id="langDisplayDiv">
+        {{ lang }}
+        <a class="edit" @click="switchEditMode">{{ editable ? '执行代码' : '编辑代码' }}</a>
+      </div>
       <div id="pyCodeOutputDiv">
-        <pre id="display-code" class="line-numbers linkable-line-numbers"><code
-            class="language-python">{{ data.code.main_code }}</code>
+        <pre id="display-code" class="line-numbers linkable-line-numbers code-area" v-show="!editable"><code
+            class="language-python">{{ code }}</code>
         </pre>
+        <a-textarea class="code-area" v-show="editable" v-model:value="code" autoSize></a-textarea>
       </div>
       <div id="footer">
         <div id="rawUserInputDiv" class="input-wrapper">
@@ -17,7 +21,6 @@
         <div id="errorOutput" class="input-wrapper">
           <a-textarea class="annotationText" id="stepAnnotationEditor" :cols="60" :rows="1"
                       placeholder="<< 错误输出流" readonly>
-
           </a-textarea>
         </div>
         <div id="stepAnnotationDiv" class="input-wrapper">
@@ -38,21 +41,22 @@
                      :fill="arrowLinesStyle.lightArrowColor"></polygon>
           </svg>
           上一次执行的行
-          <a :href="'#display-code.'+lineState.pastLine">第{{ lineState.pastLine }}行</a>
+          <a :href="'#display-code.'+pastLine">第{{ pastLine }}行</a>
           <span class="break"></span>
           <svg id="curLegendArrowSVG" class="arrow-svg">
             <polygon :points="arrowLinesStyle.SVG_ARROW_POLYGON"
                      :fill="arrowLinesStyle.darkArrowColor"></polygon>
           </svg>
           当前执行的行
-          <a :href="'#display-code.'+lineState.curLine">第{{ lineState.curLine }}行</a>
+          <a :href="'#display-code.'+curLine">第{{ curLine }}行</a>
         </div>
+        <div>当前断点列表: {{ breakpoints }}</div>
         <div id="executionSliderDocs">
-          单击代码行以设置断点。
-          使用 [ &lt; 后退 ] 和 [ 前进 &gt; ] 以到达断点所在行。
+          单击按钮以设置/取消断点。
+          使用 [ &lt; 后退 ] 和 [ 前进 &gt; ] 以后退/前进；或使用 [ 前进 &gt; ] 到达下一个断点所在行。
         </div>
         <div id="executionSlider">
-          <a-slider v-model:value="info.step.stepPointer" :min="1" :max="info.step.totalStep"
+          <a-slider v-model:value="stepPointer" :min="1" :max="trace.length - 1"
                     @change="renderStep"/>
           <div id="executionSliderFooter"></div>
         </div>
@@ -63,13 +67,19 @@
           </a-button>
           <a-button id="jmpStepBack" class="ctrlBtn" type="plain" size="small"
                     @click="stepBack"
-                    :disabled="info.step.curStep === 1"
+                    :disabled="curStep === 1"
           >&lt; 后退
           </a-button>
-          <span id="curInstr">第 {{ info.step.curStep }} 步 / 共 {{ info.step.totalStep }} 步</span>
+          <a-button class="ctrlBtn" type="plain" size="small" danger @click="deleteBreakpoint">
+            取消断点
+          </a-button>
+          <span id="curInstr">第 {{ curStep }} 步 / 共 {{ trace.length - 1 }} 步</span>
+          <a-button class="ctrlBtn" type="primary" size="small" danger @click="addBreakpoint">
+            设为断点
+          </a-button>
           <a-button id="jmpStepFwd" class="ctrlBtn" type="plain" size="small"
                     @click="stepForward"
-                    :disabled="info.step.curStep === info.step.totalStep"
+                    :disabled="curStep === trace.length - 1"
           >前进 &gt;
           </a-button>
           <a-button id="jmpLastInstr" class="ctrlBtn" type="primary" size="small"
@@ -101,10 +111,10 @@ export default {
 </script>
 
 <script setup>
-import {onMounted, provide, reactive, ref} from "vue";
+import {onBeforeMount, onMounted, provide, reactive, ref} from "vue";
 import Prism from "prismjs";
 import RelationGraph from "@/components/RelationGraph";
-import trace from "@/assets/trace.json";
+import {getTraceAPI, runCodeAndGetTraceAPI} from "@/api/traceAPI";
 
 const arrowLinesStyle = {
   SVG_ARROW_POLYGON: "0,3 12,3 12,0 18,5 12,10 12,7 0,7",
@@ -112,26 +122,49 @@ const arrowLinesStyle = {
   darkArrowColor: "#e93f34"
 };
 const relationGraphInstance = ref();
-// eslint-disable-next-line no-unused-vars
-let data = reactive(trace);
-let param = ref({
-  lang: "Python3",
-  highlightLines: false
-});
-let info = reactive({
-  step: {
-    pastStep: 1,
-    curStep: 1,
-    totalStep: data.trace.length - 1,
-    stepPointer: 1
+
+const code = ref("");
+const trace = reactive([]);
+
+const lang = ref("Python3");
+const editable = ref(false);
+
+const breakpoints = reactive([]);
+const nextBreakpoint = ref(1);
+
+const pastStep = ref(1);
+const curStep = ref(1);
+const stepPointer = ref(1);
+
+const pastLine = ref(-1);
+const curLine = ref(1);
+
+provide("trace", trace);
+provide("curStep", curStep);
+
+function switchEditMode() {
+  if (editable.value) {
+    runCodeAndGetTraceAPI(code.value).then((value) => {
+      trace.length = 0;
+      trace.push(...value["trace"]);
+      relationGraphInstance.value.renderCurStep();
+      resetStep();
+    }).then(() => {
+      Prism.highlightAll();
+    });
   }
-});
-let lineState = reactive({
-  pastLine: data.trace[info.step.curStep - 1]["line"],
-  curLine: data.trace[info.step.curStep - 1]["line"]
-});
-provide("trace", data.trace);
-provide("info", info);
+  editable.value = !editable.value;
+}
+
+function resetStep() {
+  pastStep.value = 1;
+  curStep.value = 1;
+  stepPointer.value = 1;
+
+  pastLine.value = -1;
+  curLine.value = trace[curStep.value - 1]["line"];
+  nextBreakpoint.value = -1;
+}
 
 /**
  * 重设代码块大小
@@ -144,40 +177,93 @@ function resizeCodeDisplay() {
  * 渲染指定步的代码
  */
 function renderStep() {
-  if (info.step.curStep === info.step.stepPointer) {
+  if (curStep === stepPointer) {
     return;
   }
-  info.step.pastStep = info.step.curStep;
-  info.step.curStep = info.step.stepPointer;
-  lineState.pastLine = lineState.curLine;
-  lineState.curLine = data.trace[info.step.curStep - 1]["line"];
-  window.location.assign("#display-code." + lineState.curLine);
+  pastStep.value = curStep.value;
+  curStep.value = stepPointer.value;
+  pastLine.value = curLine.value;
+  curLine.value = trace[curStep.value - 1]["line"];
+  window.location.assign("#display-code." + curLine.value);
+  toNextBreakpoint();
   relationGraphInstance.value.renderCurStep();
 }
 
 function renderFirst() {
-  info.step.stepPointer = 1;
+  stepPointer.value = 1;
   renderStep();
 }
 
 function renderLast() {
-  info.step.stepPointer = info.step.totalStep;
+  stepPointer.value = trace.length - 1;
   renderStep();
 }
 
 function stepForward() {
-  info.step.stepPointer++;
+  if (nextBreakpoint.value > -1) {
+    if (stepPointer.value < trace.length - 1) {
+      stepPointer.value++;
+      while (stepPointer.value < trace.length - 1 && trace[stepPointer.value - 1]["line"] !== nextBreakpoint.value) {
+        stepPointer.value++;
+      }
+    }
+  } else {
+    stepPointer.value++;
+  }
   renderStep();
 }
 
 function stepBack() {
-  info.step.stepPointer--;
+  stepPointer.value--;
   renderStep();
 }
 
-onMounted(() => {
-  Prism.highlightAll();
+function addBreakpoint() {
+  let loc = breakpoints.indexOf(curLine.value);
+  if (loc === -1) {
+    breakpoints.push(curLine.value);
+    breakpoints.sort();
+    toNextBreakpoint();
+  }
+}
+
+function deleteBreakpoint() {
+  let loc = breakpoints.indexOf(curLine.value);
+  if (loc > -1) {
+    breakpoints.splice(loc, 1);
+    toNextBreakpoint();
+  }
+}
+
+function toNextBreakpoint() {
+  let i = breakpoints.indexOf(curLine.value);
+  // 当前行不在断点列表
+  if (i === -1) {
+    for (i = 0; i < breakpoints.length; i++) {
+      if (breakpoints[i] > curLine.value) {
+        nextBreakpoint.value = breakpoints[i];
+        break;
+      }
+    }
+  } else {
+    nextBreakpoint.value = breakpoints[(i + 1) % breakpoints.length];
+  }
+
+}
+
+
+onBeforeMount(() => {
+  getTraceAPI().then((value) => {
+    code.value = value["code"]["main_code"];
+    trace.length = 0;
+    trace.push(...value["trace"]);
+    relationGraphInstance.value.renderCurStep();
+    resetStep();
+  }).then(() => {
+    Prism.highlightAll();
+  });
 });
+
 </script>
 
 <style scoped>
@@ -210,6 +296,12 @@ onMounted(() => {
   font-size: 16px;
 }
 
+.edit {
+  margin: 0 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
 /*code显示中样式*/
 #pyCodeOutputDiv {
   width: auto;
@@ -217,11 +309,14 @@ onMounted(() => {
 }
 
 #display-code {
+
+}
+
+.code-area {
   background-color: white;
   border-radius: 5px;
   border: solid rgba(0, 0, 0, 0.15) 2px;
 }
-
 
 /*脚注样式*/
 #footer {
@@ -262,7 +357,7 @@ onMounted(() => {
 }
 
 .ctrlBtn {
-  width: 65px;
+  width: 75px;
   margin: 0 2px;
 }
 

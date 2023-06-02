@@ -31,10 +31,11 @@ echarts.use([
   SVGRenderer
 ]);
 
-let trace = inject("trace", {});
-let info = inject("info", {});
+let trace = inject("trace");
+let curStep = inject("curStep");
 
 let graphData = [];
+let graphSeries = [];
 
 // TODO 写一个防止森林中两棵树交叉重叠的方法
 // TODO 写一个查找当前对引用某节点的变量的方法，如head= TreeNode(1)，找到名为head的变量
@@ -42,6 +43,7 @@ let graphData = [];
 function renderRelationGraph() {
   let myCharts = echarts.getInstanceByDom(document.getElementById("relationGraph"));
   //TODO tooltip formatter要写，标注成<val:节点值, ref:[]引用该节点的变量名称>
+  myCharts.clear();
   myCharts.setOption({
     title: {
       text: '数据结构图',
@@ -50,33 +52,18 @@ function renderRelationGraph() {
     tooltip: {
       alwaysShowContent: true
     },
-    series: {
-      type: 'tree',
-      symbolSize: 40,
-      label: {
-        position: 'inside',
-        verticalAlign: 'middle',
-        align: 'middle',
-        fontSize: 12
-      },
-      data: graphData,
-      left: "2%",
-      right: "2%",
-      top: "20%",
-      orient: "TB",
-      initialTreeDepth: "-1",
-      tooltip: {}
-    }
+    animation: false,
+    series: graphSeries
   });
 }
 
 function renderCurStep() {
-  // 原本的curStep参数被inject(info)取代，所以都替换成了info.step.curStep
+  // 原本的curStep参数被inject(info)取代，所以都替换成了curStep.value
   // 点号获取属性改成了用[]获取属性，便于直接添加未声明的属性
   // TODO 本来可以用ts interface来规范tempTreeNode，但没配好
   // TODO 现在每渲染一步就要重新构建一次树，是否可以考虑预先把所有的树都构建出来（？
   // TODO 前端使用递归的性能较差，将来可以转到后端或者优化算法
-  let traceStepHeap = trace[info.step.curStep]["heap"];
+  let traceStepHeap = trace[curStep.value]["heap"];
 
   let tempTreeNodeList = [];
   for (let count = 1; count <= Object.keys(traceStepHeap).length; count++) {
@@ -87,6 +74,7 @@ function renderCurStep() {
       let tempTreeNode = {};
 
       tempTreeNode["id"] = count;
+      // tempTreeNode["id"] = traceStepHeap[count][4][1];
       tempTreeNode["val"] = traceStepHeap[count][4][1];
 
       if (traceStepHeap[count][2][1] == null) {
@@ -124,7 +112,34 @@ function renderCurStep() {
   for (let count = 0; count < tempGraphData.length; count++) {
     graphData.push(reshapeTree(tempGraphData[count]));
   }
+
+  for (let count = 0; count < graphData.length; count++) {
+    graphSeries.push(
+        {
+          type: 'tree',
+          symbolSize: 40,
+          label: {
+            position: 'inside',
+            verticalAlign: 'middle',
+            align: 'middle',
+            fontSize: 12
+          },
+          lineStyle: {
+            curveness: 0
+          },
+          data: [graphData[count]],
+          left: count * 200,
+          right: "2%",
+          top: "20%",
+          orient: "TB",
+          initialTreeDepth: "-1",
+          tooltip: {}
+        }
+    );
+  }
+
   renderRelationGraph();
+  graphSeries = [];
 }
 
 function buildTree(root, list) {
@@ -149,7 +164,7 @@ function buildTree(root, list) {
 
 function reshapeTree(root) {
   let realRoot = {
-    name: root["id"],
+    name: String.fromCharCode(root["id"] - 2 + 'A'.charCodeAt() - 1),
     value: root["val"]
   };
   if (root["left"] != null || root["right"] != null) {
@@ -167,7 +182,6 @@ onMounted(() => {
   echarts.init(document.getElementById("relationGraph"), null, {
     renderer: 'svg'
   });
-  renderCurStep();
 });
 
 defineExpose({renderCurStep});
